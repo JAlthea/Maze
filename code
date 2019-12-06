@@ -1,0 +1,395 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <math.h>
+
+/* 수식의 크기 */
+#define EXPR_SIZE 100
+
+/* 문자 유형들 */
+#define DIGIT 1			//숫자 리터럴
+#define UNKNOWN 99		//기타(여기에서는 연산자의 의미)
+
+/* 토큰 코드들 */
+#define INT_LIT 10		// 1(숫자)
+#define ASSIGN_OP 20	// =
+#define ADD_OP 21		// +
+#define SUB_OP 22		// - 
+#define MULT_OP 23	// *
+#define DIV_OP 24		// /
+#define LEFT_PAREN 25	// (
+#define RIGHT_PAREN 26	// )
+#define SQUARE_OP 27	// ^(제곱)
+
+/* 파스 트리 파트*/
+typedef struct treeNode* treeNodePtr;
+typedef struct treeNode {
+	union {
+		char op[2];
+		int num;
+	} val;
+	treeNodePtr left;
+	treeNodePtr right;
+} treeNode;
+
+/* 전역 변수 파트 */
+char exp_[EXPR_SIZE];	//사용자가 입력한 식
+int index;				//입력한 식에 대한 인덱스
+int charClass;			//분류된 토큰 속성
+char lexeme[EXPR_SIZE];	//현재 토큰
+int lexLen;				//현재 토큰 길이
+char nextChar;			//다음 문자
+int nextToken;			//다음 토큰
+int result;				//수식 트리 평가의 결과
+int error = 0;			//0으로 나누었을 때의 결과 (1이면 참)
+
+/* 함수 선언 파트 */
+void addChar();
+void getChar();
+void getNonBlank();
+int lookup(char);
+int lex();
+void get_exp(char *);
+treeNodePtr expr(treeNodePtr);
+treeNodePtr term(treeNodePtr);
+treeNodePtr factor(treeNodePtr);
+treeNodePtr exp(treeNodePtr);
+treeNodePtr new_node();
+treeNodePtr gen_parse_tree(char *);
+int eval_parse_tree(treeNodePtr);
+void postorder(treeNodePtr);
+
+void addChar()	//문자 하나를 배열에 저장한다.
+{
+	if (lexLen <= EXPR_SIZE - 2)
+	{
+		lexeme[lexLen++] = nextChar;
+		lexeme[lexLen] = 0;
+	}
+	else
+		printf("Error - lexeme is too long \n");
+}
+
+void getChar()	//문자 하나를 수식에서 받아온다.
+{
+	/* 배열의 초기화 상태 & 인덱스 범위 검사 */
+	if (index >= 100 || exp_[index] < 0)
+		return;
+
+	nextChar = exp_[index];
+
+	if (isdigit(nextChar))
+		charClass = DIGIT;
+	else
+		charClass = UNKNOWN;
+
+	index++;
+}
+
+void getNonBlank()
+{
+	while (isspace(nextChar))
+		getChar();
+}
+
+int lookup(char ch)
+{
+	switch (ch)
+	{
+	case '(':
+		addChar();
+		nextToken = LEFT_PAREN;
+		break;
+	case ')':
+		addChar();
+		nextToken = RIGHT_PAREN;
+		break;
+	case '+':
+		addChar();
+		nextToken = ADD_OP;
+		break;
+	case '-':
+		addChar();
+		nextToken = SUB_OP;
+		break;
+	case '*':
+		addChar();
+		nextToken = MULT_OP;
+		break;
+	case '/':
+		addChar();
+		nextToken = DIV_OP;
+		break;
+	case '^':
+		addChar();
+		nextToken = SQUARE_OP;
+		break;
+	default:
+		addChar();
+		nextToken = EOF;
+		break;
+	}
+
+	return nextToken;
+}
+
+int lex()
+{
+	lexLen = 0;
+	getNonBlank();
+	switch (charClass)
+	{
+	case DIGIT:		//수식에서 숫자(피연산자)를 담당
+		addChar();
+		getChar();
+		while (charClass == DIGIT)
+		{
+			addChar();
+			getChar();
+		}
+		nextToken = INT_LIT;
+		break;
+
+	case UNKNOWN:	//수식에서 연산자를 담당
+		lookup(nextChar);
+		getChar();
+		break;
+
+	case EOF:
+		nextToken = EOF;
+		lexeme[0] = 'E';
+		lexeme[1] = 'O';
+		lexeme[2] = 'F';
+		lexeme[3] = 0;
+		break;
+	}
+
+	printf("Next token is : %d, Next lexeme is %s\n", nextToken, lexeme);
+	return nextToken;
+}
+
+treeNodePtr new_node()
+{	
+	treeNodePtr node = (treeNodePtr)malloc(sizeof(treeNode));
+	node->left = NULL;
+	node->right = NULL;
+	/* 공용체를 초기화할 때는 공용체 내의 멤버들이 메모리를 공유함을 유의한다. */
+	//int(4byte), char(1byte)이므로 크기가 큰 변수 기준으로 int형 멤버변수만 초기화하였다.
+	node->val.num = 0;
+
+	return node;
+}
+
+/* <expr> -> <term> + <expr> | <term> 형태 */
+treeNodePtr expr(treeNodePtr node)
+{
+	treeNodePtr expr_node = new_node();
+
+	expr_node->left = term(expr_node->left);
+	while (nextToken == ADD_OP || nextToken == SUB_OP)
+	{
+		if (nextToken == ADD_OP)
+		{
+			expr_node->val.op[0] = '+';
+			expr_node->val.op[1] = '0';
+		}
+		else if (nextToken == SUB_OP)
+		{
+			expr_node->val.op[0] = '-';
+			expr_node->val.op[1] = '0';
+		}
+
+		lex();
+		expr_node->right = expr(expr_node->right);
+	}	
+
+	node = expr_node;
+
+	return node;
+}
+
+/* <term> -> <factor> * <term> | <factor> 형태 */
+treeNodePtr term(treeNodePtr node)
+{
+	treeNodePtr term_node = new_node();
+
+	term_node->left = factor(term_node->left);
+	while (nextToken == MULT_OP || nextToken == DIV_OP)
+	{
+		if (nextToken == MULT_OP)
+		{
+			term_node->val.op[0] = '*';
+			term_node->val.op[1] = '0';
+		}
+		else if (nextToken == DIV_OP)
+		{
+			term_node->val.op[0] = '/';
+			term_node->val.op[1] = '0';
+		}
+
+		lex();
+		term_node->right = term(term_node->right);
+	}
+
+	node = term_node;
+
+	return node;
+}
+
+/* <factor> -> <exp> ** <factor> | <exp> 형태 */
+treeNodePtr factor(treeNodePtr node)
+{
+	treeNodePtr factor_node = new_node();
+
+	factor_node->left = exp(factor_node->left);
+	while (nextToken == SQUARE_OP)
+	{
+		factor_node->val.op[0] = '^';
+		factor_node->val.op[1] = '0';
+
+		lex();
+		factor_node->right = factor(factor_node->right);
+	}
+
+	node = factor_node;
+
+	return node;
+}
+
+treeNodePtr exp(treeNodePtr node)
+{
+	treeNodePtr exp = new_node();
+
+	if (nextToken == INT_LIT)
+	{
+		exp->val.num = atoi(lexeme);
+		lex();
+	}
+	else
+	{
+		if (nextToken == LEFT_PAREN)
+		{
+			lex();
+			exp->left = expr(exp->left);
+
+			if (nextToken == RIGHT_PAREN)
+			{
+				lex();
+			}
+			else
+				printf("Error : not ) \n");
+		}
+		else
+			printf("Error : not ( \n");
+	}
+
+	node = exp;
+
+	return node;
+}
+
+void get_exp(char *buffer)	//수식을 입력하고, 초기화하는 함수
+{
+	index = 0;	//수식을 입력할 때마다, 인덱스도 초기화 한다.
+	printf("\n수식을 입력하세요 : ");
+	gets_s(buffer, EXPR_SIZE);
+
+	printf("\n입력한 수식 : %s\n\n", buffer);
+}
+
+treeNodePtr gen_parse_tree(char *exp)
+{
+	treeNodePtr new_tree = NULL;
+
+	getChar();
+	do {
+		lex();
+		new_tree = expr(new_tree);
+	} while (nextToken != EOF);
+
+	return new_tree;
+}
+
+int eval_parse_tree(treeNodePtr root)
+{
+	if (root == NULL)
+	{
+		return 0;
+	}
+	if (root->left == NULL && root->right == NULL)
+	{
+		return root->val.num;
+	}
+
+	/* 도중에 값이 비어있는 노드의 경우에는 자식노드를 반환 */
+	if (root->val.num == 0 && root->val.op[0] == 0 && root->val.op[1] == 0)
+	{
+		return eval_parse_tree(root->left);
+	}
+	else
+	{
+		int op1 = eval_parse_tree(root->left);
+		int op2 = eval_parse_tree(root->right);
+		switch (root->val.op[0])
+		{
+		case '+':
+			return op1 + op2;
+		case '-':
+			return op1 - op2;
+		case '*':
+			return op1 * op2;
+		case '/':
+			if (op2 == 0)
+			{
+				printf("0으로는 나눌 수 없습니다.\n");
+				error = 1;
+				break;
+			}
+			return (int)(op1 / op2);
+		case '^':
+			return (int)pow(op1, op2);
+		}
+	}
+}
+
+void postorder(treeNodePtr root)
+{
+	if (root)
+	{
+		postorder(root->left);
+		postorder(root->right);
+
+		/* op[1]이 0이 아니라면, int가 메모리 셀에 초기화 되었음을 이용 */
+		if (root->val.op[1] != '0')
+			printf("order : %d\n", root->val.num);
+		else
+			printf("order : %c\n", root->val.op[0]);
+	}
+}
+
+int main()
+{
+    treeNodePtr ptree = NULL;
+
+	do {
+		get_exp(exp_);	//수식 입력
+
+		ptree = gen_parse_tree(exp_);	//파스 트리 생성
+
+		/* 트리가 제대로 생성되었나 확인하기 위해서 각 노드의 값을 출력 */
+		postorder(ptree);
+
+		result = eval_parse_tree(ptree);	//파스 트리 평가
+
+		/* 0으로 나누었을 때 */
+		if (error == 1)	
+		{
+			error = 0;
+			continue;
+		}
+
+		printf("평가 결과 값은 %d입니다.", result);
+	} while (!feof(stdin));	//사용자가 원할 때까지
+
+	return 0;
+}
