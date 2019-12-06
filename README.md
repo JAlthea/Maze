@@ -6,7 +6,7 @@ Input size of a maze and press any key. </br>
 ![alt-tag](img/process1.PNG)
 
 # Search process
-![alt-tag](img/search_process.PNG)
+![alt-tag](img/search_process.gif)
 
 # Failure
 ![alt-tag](img/escape_fail.PNG)
