@@ -1,395 +1,390 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
-#include <math.h>
+#include <Windows.h>
 
-/* 수식의 크기 */
-#define EXPR_SIZE 100
+#define MAX_STACK_SIZE 100000
 
-/* 문자 유형들 */
-#define DIGIT 1			//숫자 리터럴
-#define UNKNOWN 99		//기타(여기에서는 연산자의 의미)
+/*~ Maze creating & searching ~*/
 
-/* 토큰 코드들 */
-#define INT_LIT 10		// 1(숫자)
-#define ASSIGN_OP 20	// =
-#define ADD_OP 21		// +
-#define SUB_OP 22		// - 
-#define MULT_OP 23	// *
-#define DIV_OP 24		// /
-#define LEFT_PAREN 25	// (
-#define RIGHT_PAREN 26	// )
-#define SQUARE_OP 27	// ^(제곱)
+typedef int* intptr;
+typedef intptr* intptr2;
+typedef char* charptr;
+typedef charptr* charptr2;
 
-/* 파스 트리 파트*/
-typedef struct treeNode* treeNodePtr;
-typedef struct treeNode {
-	union {
-		char op[2];
-		int num;
-	} val;
-	treeNodePtr left;
-	treeNodePtr right;
-} treeNode;
+typedef struct indextype indextype;
+typedef indextype* indexptr;
+typedef struct indextype {
+	int r;
+	int c;
+} indextype;
 
-/* 전역 변수 파트 */
-char exp_[EXPR_SIZE];	//사용자가 입력한 식
-int index;				//입력한 식에 대한 인덱스
-int charClass;			//분류된 토큰 속성
-char lexeme[EXPR_SIZE];	//현재 토큰
-int lexLen;				//현재 토큰 길이
-char nextChar;			//다음 문자
-int nextToken;			//다음 토큰
-int result;				//수식 트리 평가의 결과
-int error = 0;			//0으로 나누었을 때의 결과 (1이면 참)
+typedef struct stacktype stacktype;
+typedef stacktype* stackptr;
+typedef struct stacktype {
+	indextype data[MAX_STACK_SIZE];
+	int top;
+} stacktype;
 
-/* 함수 선언 파트 */
-void addChar();
-void getChar();
-void getNonBlank();
-int lookup(char);
-int lex();
-void get_exp(char *);
-treeNodePtr expr(treeNodePtr);
-treeNodePtr term(treeNodePtr);
-treeNodePtr factor(treeNodePtr);
-treeNodePtr exp(treeNodePtr);
-treeNodePtr new_node();
-treeNodePtr gen_parse_tree(char *);
-int eval_parse_tree(treeNodePtr);
-void postorder(treeNodePtr);
-
-void addChar()	//문자 하나를 배열에 저장한다.
+void init(stackptr s)
 {
-	if (lexLen <= EXPR_SIZE - 2)
-	{
-		lexeme[lexLen++] = nextChar;
-		lexeme[lexLen] = 0;
-	}
-	else
-		printf("Error - lexeme is too long \n");
+	s->top = -1;
 }
 
-void getChar()	//문자 하나를 수식에서 받아온다.
+int is_empty(stackptr s)
 {
-	/* 배열의 초기화 상태 & 인덱스 범위 검사 */
-	if (index >= 100 || exp_[index] < 0)
+	return (s->top == -1);
+}
+
+int is_full(stackptr s)
+{
+	return (s->top == (MAX_STACK_SIZE - 1));
+}
+
+void push(stackptr s, indextype item)
+{
+	if (is_full(s))
+	{
+		fprintf(stderr, "Stack full error!\n");
+		return;
+	}
+
+	s->data[++(s->top)] = item;
+}
+
+indextype pop(stackptr s)
+{
+	if (is_empty(s))
+	{
+		fprintf(stderr, "Stack empty error!\n");
+		exit(1);
+	}
+
+	return s->data[(s->top)--];
+}
+
+indextype peek(stackptr s)
+{
+	if (is_empty(s))
+	{
+		fprintf(stderr, "Stack empty error!\n");
+		exit(1);
+	}
+
+	return s->data[s->top];
+}
+
+void push_loc(stackptr s, intptr2 maze, int r, int c)
+{
+	if (r < 2 || c < 2)
 		return;
 
-	nextChar = exp_[index];
-
-	if (isdigit(nextChar))
-		charClass = DIGIT;
-	else
-		charClass = UNKNOWN;
-
-	index++;
-}
-
-void getNonBlank()
-{
-	while (isspace(nextChar))
-		getChar();
-}
-
-int lookup(char ch)
-{
-	switch (ch)
+	if ((maze[r][c] != 1) && (maze[r][c] != '.'))
 	{
-	case '(':
-		addChar();
-		nextToken = LEFT_PAREN;
-		break;
-	case ')':
-		addChar();
-		nextToken = RIGHT_PAREN;
-		break;
-	case '+':
-		addChar();
-		nextToken = ADD_OP;
-		break;
-	case '-':
-		addChar();
-		nextToken = SUB_OP;
-		break;
-	case '*':
-		addChar();
-		nextToken = MULT_OP;
-		break;
-	case '/':
-		addChar();
-		nextToken = DIV_OP;
-		break;
-	case '^':
-		addChar();
-		nextToken = SQUARE_OP;
-		break;
-	default:
-		addChar();
-		nextToken = EOF;
-		break;
+		indextype tmp;
+		tmp.r = r;
+		tmp.c = c;
+		push(s, tmp);
+	}
+}
+
+void push_loc2(stackptr s, intptr2 maze, int r, int c)
+{
+	if (r < 2 || c < 2)
+		return;
+
+	if ((maze[r][c] != 1) && (maze[r][c] != '*'))
+	{
+		indextype tmp;
+		tmp.r = r;
+		tmp.c = c;
+		push(s, tmp);
+	}
+}
+
+intptr2 create_maze(indexptr start, indexptr end)
+{
+	intptr2 maze;
+	int width, height;
+	int x, y, r;
+	int start_x, start_y, end_x, end_y;
+
+	//Input the size of the maze
+	printf("Please decide the size of the maze. : (Input example : 50 40)\n");
+	int numbering = scanf("%d %d", &width, &height);
+	if ((numbering < 2) || (width < 4) || (height < 4) || (width % 2 == 0) || (height % 2 == 0))
+	{
+		printf("숫자를 제대로 입력해주세요.\n");
+		exit(1);
 	}
 
-	return nextToken;
-}
-
-int lex()
-{
-	lexLen = 0;
-	getNonBlank();
-	switch (charClass)
+	//Create memory space to create a maze
+	maze = (intptr2)malloc(sizeof(intptr) * (width + 5));
+	for (int i = 0; i < width + 5; i++)
 	{
-	case DIGIT:		//수식에서 숫자(피연산자)를 담당
-		addChar();
-		getChar();
-		while (charClass == DIGIT)
-		{
-			addChar();
-			getChar();
-		}
-		nextToken = INT_LIT;
-		break;
-
-	case UNKNOWN:	//수식에서 연산자를 담당
-		lookup(nextChar);
-		getChar();
-		break;
-
-	case EOF:
-		nextToken = EOF;
-		lexeme[0] = 'E';
-		lexeme[1] = 'O';
-		lexeme[2] = 'F';
-		lexeme[3] = 0;
-		break;
+		maze[i] = (intptr)malloc(sizeof(int) * (height + 5));
+		for (int j = 0; j < height + 5; j++)
+			maze[i][j] = 0;
 	}
 
-	printf("Next token is : %d, Next lexeme is %s\n", nextToken, lexeme);
-	return nextToken;
-}
+	/* #1. Randomly create inside a maze */
+	x = 2, y = 2;
+	maze[x][y] = 1;
 
-treeNodePtr new_node()
-{	
-	treeNodePtr node = (treeNodePtr)malloc(sizeof(treeNode));
-	node->left = NULL;
-	node->right = NULL;
-	/* 공용체를 초기화할 때는 공용체 내의 멤버들이 메모리를 공유함을 유의한다. */
-	//int(4byte), char(1byte)이므로 크기가 큰 변수 기준으로 int형 멤버변수만 초기화하였다.
-	node->val.num = 0;
-
-	return node;
-}
-
-/* <expr> -> <term> + <expr> | <term> 형태 */
-treeNodePtr expr(treeNodePtr node)
-{
-	treeNodePtr expr_node = new_node();
-
-	expr_node->left = term(expr_node->left);
-	while (nextToken == ADD_OP || nextToken == SUB_OP)
+	srand(time(NULL));
+	for (int i = 0; i < width * height * 10; i++)
 	{
-		if (nextToken == ADD_OP)
+		r = rand() % 4 + 1;
+
+		if (r == 1)
 		{
-			expr_node->val.op[0] = '+';
-			expr_node->val.op[1] = '0';
-		}
-		else if (nextToken == SUB_OP)
-		{
-			expr_node->val.op[0] = '-';
-			expr_node->val.op[1] = '0';
-		}
+			if (y == 2)
+				continue;
 
-		lex();
-		expr_node->right = expr(expr_node->right);
-	}	
-
-	node = expr_node;
-
-	return node;
-}
-
-/* <term> -> <factor> * <term> | <factor> 형태 */
-treeNodePtr term(treeNodePtr node)
-{
-	treeNodePtr term_node = new_node();
-
-	term_node->left = factor(term_node->left);
-	while (nextToken == MULT_OP || nextToken == DIV_OP)
-	{
-		if (nextToken == MULT_OP)
-		{
-			term_node->val.op[0] = '*';
-			term_node->val.op[1] = '0';
-		}
-		else if (nextToken == DIV_OP)
-		{
-			term_node->val.op[0] = '/';
-			term_node->val.op[1] = '0';
-		}
-
-		lex();
-		term_node->right = term(term_node->right);
-	}
-
-	node = term_node;
-
-	return node;
-}
-
-/* <factor> -> <exp> ** <factor> | <exp> 형태 */
-treeNodePtr factor(treeNodePtr node)
-{
-	treeNodePtr factor_node = new_node();
-
-	factor_node->left = exp(factor_node->left);
-	while (nextToken == SQUARE_OP)
-	{
-		factor_node->val.op[0] = '^';
-		factor_node->val.op[1] = '0';
-
-		lex();
-		factor_node->right = factor(factor_node->right);
-	}
-
-	node = factor_node;
-
-	return node;
-}
-
-treeNodePtr exp(treeNodePtr node)
-{
-	treeNodePtr exp = new_node();
-
-	if (nextToken == INT_LIT)
-	{
-		exp->val.num = atoi(lexeme);
-		lex();
-	}
-	else
-	{
-		if (nextToken == LEFT_PAREN)
-		{
-			lex();
-			exp->left = expr(exp->left);
-
-			if (nextToken == RIGHT_PAREN)
+			if (maze[x][y - 2] == 0)
 			{
-				lex();
+				maze[x][--y] = 1;
+				maze[x][--y] = 1;
 			}
 			else
-				printf("Error : not ) \n");
+				y -= 2;
 		}
-		else
-			printf("Error : not ( \n");
-	}
 
-	node = exp;
-
-	return node;
-}
-
-void get_exp(char *buffer)	//수식을 입력하고, 초기화하는 함수
-{
-	index = 0;	//수식을 입력할 때마다, 인덱스도 초기화 한다.
-	printf("\n수식을 입력하세요 : ");
-	gets_s(buffer, EXPR_SIZE);
-
-	printf("\n입력한 수식 : %s\n\n", buffer);
-}
-
-treeNodePtr gen_parse_tree(char *exp)
-{
-	treeNodePtr new_tree = NULL;
-
-	getChar();
-	do {
-		lex();
-		new_tree = expr(new_tree);
-	} while (nextToken != EOF);
-
-	return new_tree;
-}
-
-int eval_parse_tree(treeNodePtr root)
-{
-	if (root == NULL)
-	{
-		return 0;
-	}
-	if (root->left == NULL && root->right == NULL)
-	{
-		return root->val.num;
-	}
-
-	/* 도중에 값이 비어있는 노드의 경우에는 자식노드를 반환 */
-	if (root->val.num == 0 && root->val.op[0] == 0 && root->val.op[1] == 0)
-	{
-		return eval_parse_tree(root->left);
-	}
-	else
-	{
-		int op1 = eval_parse_tree(root->left);
-		int op2 = eval_parse_tree(root->right);
-		switch (root->val.op[0])
+		if (r == 2)
 		{
-		case '+':
-			return op1 + op2;
-		case '-':
-			return op1 - op2;
-		case '*':
-			return op1 * op2;
-		case '/':
-			if (op2 == 0)
+			if (x == width + 1)
+				continue;
+
+			if (maze[x + 2][y] == 0)
 			{
-				printf("0으로는 나눌 수 없습니다.\n");
-				error = 1;
-				break;
+				maze[++x][y] = 1;
+				maze[++x][y] = 1;
 			}
-			return (int)(op1 / op2);
-		case '^':
-			return (int)pow(op1, op2);
+			else
+				x += 2;
 		}
+
+		if (r == 3)
+		{
+			if (y == height + 1)
+				continue;
+
+			if (maze[x][y + 2] == 0)
+			{
+				maze[x][++y] = 1;
+				maze[x][++y] = 1;
+			}
+			else
+				y += 2;
+		}
+
+		if (r == 4)
+		{
+			if (x == 2)
+				continue;
+
+			if (maze[x - 2][y] == 0)
+			{
+				maze[--x][y] = 1;
+				maze[--x][y] = 1;
+			}
+			else
+				x -= 2;
+		}
+	}
+
+	/* #2. Remove the interior to create a maze */
+
+	//Temporarily block between inner and outer walls
+	for (int i = 1; i < width + 3; i++)
+	{
+		for (int j = 1; j < height + 3; j++)
+		{
+			if ((i == 1) || (i == width + 2) || (j == 1) || (j == height + 2))
+				maze[i][j] = 1;
+		}
+	}
+
+	//Remove the inside of a maze
+	for (int i = 2; i < width + 2; i++)
+	{
+		for (int j = 2; j < height + 2; j++)
+		{
+			if (((i == 2) || (i == width + 1) || (j == 2) || (j == height + 1)) && (maze[i][j] == 0))
+			{
+				stacktype s;
+				init(&s);
+
+				int r, c;
+
+				indextype here = { i, j };
+				while ((here.r != width + 3) && (here.c != height + 3))
+				{
+					r = here.r;
+					c = here.c;
+					maze[r][c] = '.';
+
+					push_loc(&s, maze, r - 1, c);
+					push_loc(&s, maze, r + 1, c);
+					push_loc(&s, maze, r, c - 1);
+					push_loc(&s, maze, r, c + 1);
+
+					if (is_empty(&s))
+					{
+						maze[r - 1][c] = 0;
+						maze[r + 1][c] = 0;
+						maze[r][c - 1] = 0;
+						maze[r][c + 1] = 0;
+
+						break;
+					}
+					else
+						here = pop(&s);
+				}
+			}
+		}
+	}
+
+	//Piercing between inner and outer walls
+	for (int i = 1; i < width + 3; i++)
+	{
+		for (int j = 1; j < height + 3; j++)
+		{
+			if ((i == 1) || (i == width + 2) || (j == 1) || (j == height + 2))
+				maze[i][j] = 0;
+		}
+	}
+
+	/* #3. Create the outer wall of a maze */
+	for (int i = 2; i < width + 2; i++)
+	{
+		for (int j = 2; j < height + 2; j++)
+		{
+			if ((i == 2) || (i == width + 1) || (j == 2) || (j == height + 1))
+				maze[i][j] = 1;
+		}
+	}
+
+	/* #4. Create the entrance and exit of a maze */
+	while (1)
+	{
+		start_x = rand() % (width - 3) + 3;
+		start_y = 2;
+
+		end_x = rand() % (width - 3) + 3;
+		end_y = height + 1;
+
+		if ((start_x == end_x) && (start_y == end_y))
+			continue;
+		else if ((maze[start_x][start_y + 1] == 1) || (maze[end_x][end_y - 1] == 1))
+			continue;
+		else
+		{
+			start->r = start_x;
+			start->c = start_y;
+			end->r = end_x;
+			end->c = end_y;
+			maze[start_x][start_y] = 0;
+			maze[end_x][end_y] = 'x';
+			break;
+		}
+	}
+
+	return maze;
+}
+
+void print_maze(intptr2 maze)
+{
+	int w = _msize(maze) / sizeof(int);
+	int h = _msize(maze[0]) / sizeof(int);
+
+	for (int i = 0; i < w - 1; i++)
+	{
+		for (int j = 0; j < h - 1; j++)
+		{
+			if (maze[i][j] == 1)
+				printf("%s", "■");
+			else
+				printf("%s", "  ");
+		}
+		printf("\n");
 	}
 }
 
-void postorder(treeNodePtr root)
+void remove_maze(intptr2 maze)
 {
-	if (root)
-	{
-		postorder(root->left);
-		postorder(root->right);
+	int len = _msize(maze) / sizeof(int);
 
-		/* op[1]이 0이 아니라면, int가 메모리 셀에 초기화 되었음을 이용 */
-		if (root->val.op[1] != '0')
-			printf("order : %d\n", root->val.num);
+	for (int i = 0; i < len; i++)
+		free(maze[i]);
+	free(maze);
+}
+
+void gotoxy(int x, int y)
+{
+	COORD pos;
+	pos.X = x;
+	pos.Y = y;
+	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
+}
+
+void search_exit(intptr2 maze, indexptr start, indexptr end)
+{
+	int h = _msize(maze[0]) / sizeof(int);
+
+	stacktype s;
+	init(&s);
+
+	int r, c;
+	indextype here = { start->r, start->c };
+	indextype entry = { start->r, start->c };
+
+	_getch();
+	while (maze[here.r][here.c] != 'x')
+	{
+		r = here.r;
+		c = here.c;
+		maze[r][c] = '*';
+
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10);
+		gotoxy(2 * c, r + 2);
+		printf("%s", "★");
+		Sleep(100);
+		//_getch();	//User checking one by one
+
+		push_loc2(&s, maze, r - 1, c);		//North
+		push_loc2(&s, maze, r + 1, c);		//South
+		push_loc2(&s, maze, r, c - 1);		//West
+		push_loc2(&s, maze, r, c + 1);		//East
+
+		push_loc2(&s, maze, r - 1, c - 1);	//Northwest
+		push_loc2(&s, maze, r + 1, c - 1);	//Southwest
+		push_loc2(&s, maze, r - 1, c + 1);	//Northeast
+		push_loc2(&s, maze, r + 1, c + 1);	//Southeast
+
+		if (is_empty(&s))
+		{
+			gotoxy(0, h);
+			SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+			printf("Escape status : Failure! \n\n");
+			return;
+		}
 		else
-			printf("order : %c\n", root->val.op[0]);
+			here = pop(&s);
 	}
+	gotoxy(0, h);
+	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
+	printf("Escape status : Success! \n\n");
 }
 
 int main()
 {
-    treeNodePtr ptree = NULL;
+	system("title Althea Maze");
 
-	do {
-		get_exp(exp_);	//수식 입력
-
-		ptree = gen_parse_tree(exp_);	//파스 트리 생성
-
-		/* 트리가 제대로 생성되었나 확인하기 위해서 각 노드의 값을 출력 */
-		postorder(ptree);
-
-		result = eval_parse_tree(ptree);	//파스 트리 평가
-
-		/* 0으로 나누었을 때 */
-		if (error == 1)	
-		{
-			error = 0;
-			continue;
-		}
-
-		printf("평가 결과 값은 %d입니다.", result);
-	} while (!feof(stdin));	//사용자가 원할 때까지
-
+	indextype start, end;
+	intptr2 maze = create_maze(&start, &end);
+	print_maze(maze);
+	search_exit(maze, &start, &end);
+	remove_maze(maze);
+	
 	return 0;
 }
