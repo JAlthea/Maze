@@ -1,6 +1,6 @@
 # Maze
-Create a maze randomly. Search the created maze to see if you can escape.
-Input size of a maze and press any key. 
+Create a maze randomly. Search the created maze to see if you can escape. </br>
+Input size of a maze and press any key. </br>
 
 # Input example
 ![alt-tag](img/process1.PNG)
