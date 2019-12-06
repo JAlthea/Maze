@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <conio.h>
 #include <Windows.h>
 
 #define MAX_STACK_SIZE 100000
@@ -109,7 +111,7 @@ intptr2 create_maze(indexptr start, indexptr end)
 	int start_x, start_y, end_x, end_y;
 
 	//Input the size of the maze
-	printf("Please decide the size of the maze. : (Input example : 50 40)\n");
+	printf("Please decide the size of the maze. Input only odd number : (example : 51 51)\n");
 	int numbering = scanf("%d %d", &width, &height);
 	if ((numbering < 2) || (width < 4) || (height < 4) || (width % 2 == 0) || (height % 2 == 0))
 	{
