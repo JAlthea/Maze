@@ -115,7 +115,7 @@ intptr2 create_maze(indexptr start, indexptr end)
 	int numbering = scanf("%d %d", &width, &height);
 	if ((numbering < 2) || (width < 4) || (height < 4) || (width % 2 == 0) || (height % 2 == 0))
 	{
-		printf("숫자를 제대로 입력해주세요.\n");
+		printf("Please enter the correct number.\n");
 		exit(1);
 	}
 
