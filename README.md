@@ -6,7 +6,7 @@ Input size of a maze and press any key. [Source code](code) </br>
 ![alt-tag](img/search_process.gif)
 
 # Failure
-<img src="https://github.com/JAlthea/Maze-in-2017/master/img/escape_fail.PNG" width="400" height="400">
+<img src="img/escape_fail.PNG" width="500" height="500">
 
 # Success
-<img src="https://github.com/JAlthea/Maze-in-2017/master/img/escape_success.PNG" width="400" height="400">
+<img src="img/escape_success.PNG" width="500" height="500">
