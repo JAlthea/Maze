@@ -1,6 +1,6 @@
 # Maze
 Create a maze randomly. Search the created maze to see if you can escape. </br>
-Input size of a maze and press any key. [Source code](https://github.com/JAlthea/Maze-in-2017/blob/master/code) </br>
+Input size of a maze and press any key. [Source code](code) </br>
 
 # Search process
 ![alt-tag](img/search_process.gif)
