@@ -1,6 +1,6 @@
 # Maze
 Create a maze randomly. Search the created maze to see if you can escape. </br>
-Input size of a maze and press any key. </br>
+Input size of a maze and press any key. &nbsp;  [Source code](code.txt) </br>
 
 # Search process
 ![alt-tag](img/search_process.gif)
